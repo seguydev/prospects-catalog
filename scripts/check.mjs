@@ -1,0 +1,11 @@
+import pg from "pg";
+const c = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+await c.connect();
+const total = await c.query("select count(*)::int as n from public.prospects");
+const acc   = await c.query("select count(*)::int as n from public.prospects where connexion_acceptee='OUI'");
+const list  = await c.query("select numero, prenom, nom, societe, niveau_relation, connexion_acceptee from public.prospects order by numero limit 5");
+console.log("Total prospects :", total.rows[0].n);
+console.log("Connexions acceptées :", acc.rows[0].n);
+console.log("Échantillon :");
+console.table(list.rows);
+await c.end();
