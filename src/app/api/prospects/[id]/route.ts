@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireAllowedUser } from "@/lib/supabase-server";
 
 // Liste blanche des colonnes modifiables (évite injection arbitraire).
 const EDITABLE = new Set([
@@ -26,6 +27,11 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const user = await requireAllowedUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id } = await params;
   let body: Record<string, unknown>;
   try {

@@ -1,148 +1,171 @@
-# Prospects Catalog
+# mcp-prospects
 
-Catalogue de prospects LinkedIn stocké sur **Supabase Postgres** et accessible à
-**Claude** en lecture/écriture via le **MCP Supabase**. Petite UI Next.js en bonus
-pour visualiser la table.
+**Connect Claude directly to a Supabase Postgres database to read and update a
+catalog of LinkedIn prospects — through the Model Context Protocol (MCP).**
+
+This repository is a minimal, public reference setup that demonstrates how to:
+
+1. Host a `prospects` table on **Supabase Postgres** (schema + seed included).
+2. Expose that database to **Claude** via the **Supabase MCP server** so the
+   model can run SQL, apply migrations, and update rows on your behalf — using
+   natural-language instructions.
+3. Visualize the table from a small **Next.js 15 / React 19** UI.
+
+Once the MCP is wired up, you can simply tell Claude things like *"mark
+prospect #9 as a confirmed meeting on 2026-05-12"* or *"add a new prospect
+named Pierre Durand, Partner at Mazars"*, and Claude will write to the database
+itself — no manual SQL needed.
 
 ---
 
-## 1. Installation
+## 1. Install
 
 ```bash
-cd prospects-catalog
+git clone <this-repo> mcp-prospects
+cd mcp-prospects
 npm install
 cp .env.example .env.local
-# → renseigne YOUR-PASSWORD / ANON_KEY / SERVICE_ROLE_KEY
+# → fill in YOUR-PROJECT-REF / YOUR-PASSWORD / ANON_KEY / SERVICE_ROLE_KEY
 ```
 
-Récupère les clés ici : Supabase → ton projet → **Project Settings → API**.
+Grab the keys from Supabase → your project → **Project Settings → API**, and
+the project ref from the project URL (`https://<PROJECT-REF>.supabase.co`).
 
 ---
 
-## 2. Créer le schéma + seeder les 29 prospects
+## 2. Create the schema and seed sample data
 
 ### Option A — via `psql`
 
 ```bash
-# Requiert psql installé localement
-$env:DATABASE_URL = "postgresql://postgres:MOT_DE_PASSE@db.ghoisutpgunmihjngzcu.supabase.co:5432/postgres"
+$env:DATABASE_URL = "postgresql://postgres:YOUR_PASSWORD@db.YOUR-PROJECT-REF.supabase.co:5432/postgres"
 psql $env:DATABASE_URL -f supabase/migrations/0001_init.sql
 psql $env:DATABASE_URL -f supabase/seed.sql
 ```
 
-### Option B — via le SQL Editor Supabase
+### Option B — via the Supabase SQL Editor
 
-Ouvre Supabase → **SQL Editor** → colle successivement :
+Open Supabase → **SQL Editor** → paste, in order:
 
 1. `supabase/migrations/0001_init.sql`
 2. `supabase/seed.sql`
 
-### Option C — via Claude lui-même (MCP)
+### Option C — via Claude itself (MCP)
 
-Une fois le MCP configuré (étape 3), tu peux demander à Claude :
+Once the MCP is configured (step 3), just ask Claude:
 
-> *« Applique la migration `supabase/migrations/0001_init.sql` puis le seed
-> `supabase/seed.sql` sur ma base. »*
+> *"Apply the migration `supabase/migrations/0001_init.sql` and then the seed
+> `supabase/seed.sql` to my database."*
 
-Claude utilisera l'outil `apply_migration` / `execute_sql` du MCP Supabase.
+Claude will use the Supabase MCP's `apply_migration` / `execute_sql` tools.
 
 ---
 
-## 3. Configurer le MCP Supabase pour Claude
+## 3. Configure the Supabase MCP for Claude
 
-Le fichier [.mcp.json](.mcp.json) est déjà créé à la racine. Il déclare le MCP
-Supabase en **scope projet** (transport HTTP) :
+The [.mcp.json](.mcp.json) file at the repo root registers the Supabase MCP as
+a **project-scoped** HTTP server. Replace `YOUR-PROJECT-REF` with your own
+Supabase project ref:
 
 ```json
 {
   "mcpServers": {
     "supabase": {
       "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=ghoisutpgunmihjngzcu"
+      "url": "https://mcp.supabase.com/mcp?project_ref=YOUR-PROJECT-REF"
     }
   }
 }
 ```
 
-Équivalent CLI (si tu veux le régénérer) :
+CLI equivalent:
 
 ```bash
 claude mcp add --scope project --transport http supabase \
-  "https://mcp.supabase.com/mcp?project_ref=ghoisutpgunmihjngzcu"
+  "https://mcp.supabase.com/mcp?project_ref=YOUR-PROJECT-REF"
 ```
 
-### Authentification (à faire une seule fois)
+### One-time authentication
 
-Dans un **vrai terminal** (pas l'extension VS Code) :
+In a **real terminal** (not the VS Code extension):
 
 ```bash
-cd prospects-catalog
+cd mcp-prospects
 claude /mcp
 ```
 
-→ sélectionne `supabase` → **Authenticate** → tu es redirigé vers Supabase pour
-autoriser l'accès au projet `ghoisutpgunmihjngzcu`.
+→ select `supabase` → **Authenticate** → you will be redirected to Supabase to
+grant access to your project.
 
-### (Optionnel) Agent Skills Supabase
+### (Optional) Supabase agent skills
 
 ```bash
 npx skills add supabase/agent-skills
 ```
 
-Ça installe des skills prêts à l'emploi (migrations, RLS, requêtes…) que Claude
-saura invoquer automatiquement.
+Installs ready-made skills (migrations, RLS, queries…) that Claude can invoke
+automatically.
 
 ---
 
-## 4. Lancer l'UI
+## 4. Run the UI
 
 ```bash
 npm run dev
 # → http://localhost:3000
 ```
 
-Tu verras la liste des 29 prospects, avec stats (acceptés / à vérifier / RDV).
+You will see the list of seeded prospects with quick stats (accepted / to
+review / meetings booked).
 
 ---
 
-## 5. Ce que Claude peut faire via le MCP
+## 5. What Claude can do via the MCP
 
-Une fois authentifié, dis simplement à Claude :
+Once authenticated, you can ask Claude in plain language:
 
-- *« Liste les prospects ACL et propose une stratégie pour éviter le pattern de 3 partners. »*
-- *« Marque le prospect n°9 (Marc Chezot) comme RDV programmé le 12/05/2026. »*
-- *« Ajoute un nouveau prospect : Pierre Durand, Partner chez Mazars, 2e niveau. »*
-- *« Quels prospects de niveau 1er n'ont pas encore reçu de follow-up ? »*
+- *"List all prospects from firm ACL and suggest a strategy."*
+- *"Mark prospect #9 (Marc Chezot) as a confirmed meeting on 2026-05-12."*
+- *"Add a new prospect: Pierre Durand, Partner at Mazars, 2nd-degree connection."*
+- *"Which 1st-degree prospects haven't received a follow-up yet?"*
 
-Claude utilisera `execute_sql` (lecture) et `apply_migration` / `execute_sql`
-(écriture) en s'appuyant sur le compte authentifié à l'étape 3.
+Claude uses `execute_sql` (read) and `apply_migration` / `execute_sql` (write)
+under the account you authenticated in step 3.
 
 ---
 
-## Schéma résumé
+## Schema summary
 
-Table `public.prospects` :
+Table `public.prospects`:
 
-| Colonne                | Type        | Notes                                    |
-|------------------------|-------------|------------------------------------------|
-| id                     | uuid (pk)   | `gen_random_uuid()`                      |
-| numero                 | int unique  | N° d'ordre source (1..29…)               |
-| date_envoi             | date        |                                          |
-| prenom / nom           | text        |                                          |
-| poste / societe        | text        |                                          |
-| zone_geographique      | text        |                                          |
-| niveau_relation        | text        | `1er` \| `2e` \| `3e`                    |
-| angle_message          | text        | Angle utilisé                            |
-| message_envoye         | text        | Extrait                                  |
-| connexion_acceptee     | text        | `OUI` \| `NON` \| `À compléter`          |
-| date_acceptation       | date        |                                          |
-| date_followup_prevue   | date        |                                          |
-| followup_envoye        | bool        | default false                            |
-| reponse / type_reponse | text        |                                          |
-| rdv_programme          | bool        | default false                            |
-| notes                  | text        |                                          |
-| source                 | text        | default `linkedin`                       |
-| created_at / updated_at| timestamptz | trigger auto sur update                  |
+| Column                 | Type        | Notes                                     |
+|------------------------|-------------|-------------------------------------------|
+| id                     | uuid (pk)   | `gen_random_uuid()`                       |
+| numero                 | int unique  | source order number                       |
+| date_envoi             | date        | outreach date                             |
+| prenom / nom           | text        | first / last name                         |
+| poste / societe        | text        | role / company                            |
+| zone_geographique      | text        | geography                                 |
+| niveau_relation        | text        | `1er` \| `2e` \| `3e`                     |
+| angle_message          | text        | outreach angle                            |
+| message_envoye         | text        | message excerpt                           |
+| connexion_acceptee     | text        | `OUI` \| `NON` \| `À compléter`           |
+| date_acceptation       | date        |                                           |
+| date_followup_prevue   | date        |                                           |
+| followup_envoye        | bool        | default `false`                           |
+| reponse / type_reponse | text        |                                           |
+| rdv_programme          | bool        | default `false`                           |
+| notes                  | text        |                                           |
+| source                 | text        | default `linkedin`                        |
+| created_at / updated_at| timestamptz | auto-updated via trigger                  |
 
-RLS activée. Lecture autorisée pour `anon` / `authenticated`. Écriture
-réservée au `service_role` (donc au MCP authentifié et aux scripts).
+RLS is enabled. Read is allowed for `anon` / `authenticated`. Writes are
+restricted to `service_role` (i.e. the authenticated MCP and server scripts).
+
+---
+
+## Security note
+
+This repository is public. **Never commit `.env.local`**, your service role
+key, or your database password. The `.env.example` and `.mcp.json` files ship
+with placeholders only — fill them in locally.

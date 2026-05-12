@@ -1,9 +1,16 @@
-import { supabase, type Prospect } from "@/lib/supabase";
+import { type Prospect } from "@/lib/supabase";
 import { ProspectsTable } from "./ProspectsTable";
+import { getSupabaseServerClient, requireAllowedUser } from "@/lib/supabase-server";
+import { redirect } from "next/navigation";
 
 export const revalidate = 0;
 
 export default async function Page() {
+  const user = await requireAllowedUser();
+  if (!user) redirect("/login");
+
+  // Lecture via la session de l'utilisateur (RLS appliquée côté Postgres).
+  const supabase = await getSupabaseServerClient();
   const { data, error } = await supabase
     .from("prospects")
     .select("*")
@@ -24,11 +31,22 @@ export default async function Page() {
             Édition inline • Filtres par colonne • Accessible à Claude via MCP Supabase.
           </p>
         </div>
-        <div className="grid grid-cols-4 gap-3 text-center">
-          <Stat label="Total" value={total} />
-          <Stat label="Acceptés" value={acceptes} tone="green" />
-          <Stat label="À vérifier" value={aSuivre} tone="amber" />
-          <Stat label="RDV" value={rdv} tone="blue" />
+        <div className="flex items-center gap-4">
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <Stat label="Total" value={total} />
+            <Stat label="Acceptés" value={acceptes} tone="green" />
+            <Stat label="À vérifier" value={aSuivre} tone="amber" />
+            <Stat label="RDV" value={rdv} tone="blue" />
+          </div>
+          <form action="/auth/signout" method="post" className="flex flex-col items-end gap-1">
+            <span className="text-[10px] text-neutral-500 truncate max-w-[180px]">{user.email}</span>
+            <button
+              type="submit"
+              className="text-xs rounded border border-neutral-300 dark:border-neutral-700 px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Se déconnecter
+            </button>
+          </form>
         </div>
       </header>
 
